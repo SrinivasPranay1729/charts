@@ -1,36 +1,42 @@
-import boto3
-import json
+import paramiko
 
-def get_customer_managed_kms_policies():
-    # Create a KMS client
-    client = boto3.client('kms')
+def ssh_to_instance(host_ip, username, key_path, commands):
+    # Load the private key
+    key = paramiko.RSAKey.from_private_key_file(key_path)
 
-    # Initialize a paginator for the list_keys operation
-    paginator = client.get_paginator('list_keys')
+    # Create the SSH client
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # Collect all customer-managed KMS keys
-    for page in paginator.paginate():
-        for key in page['Keys']:
-            # Get metadata to check if the key is customer-managed
-            metadata = client.describe_key(KeyId=key['KeyId'])['KeyMetadata']
-            if metadata['KeyManager'] == 'CUSTOMER':
-                key_id = metadata['KeyId']
-                # Fetch the policies for each customer-managed key
-                policies = client.list_key_policies(KeyId=key_id)['PolicyNames']
-                for policy_name in policies:
-                    # Retrieve the actual policy document
-                    policy = client.get_key_policy(KeyId=key_id, PolicyName=policy_name)['Policy']
-                    policy_data = json.loads(policy)
-                    
-                    # Define a filename using both the key ID and the policy name
-                    filename = f'{key_id}_{policy_name}.json'
-                    # Write the policy to a separate file
-                    with open(filename, 'w') as file:
-                        json.dump(policy_data, file, indent=4)
-                    print(f"Policy {policy_name} for key {key_id} written to '{filename}'")
+    # Connect to the instance
+    try:
+        ssh_client.connect(host_ip, username=username, pkey=key)
+        print(f"Connected to {host_ip}")
 
-def main():
-    get_customer_managed_kms_policies()
+        # Run each command in the list of commands
+        for command in commands:
+            stdin, stdout, stderr = ssh_client.exec_command(command)
+            output = stdout.read().decode()
+            print(f"Output of {command}:\n{output}")
+    
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+    
+    finally:
+        ssh_client.close()
 
-if __name__ == "__main__":
-    main()
+# Define the host, username, and key
+host_ip = "YOUR_EC2_IP_ADDRESS"
+username = "ec2-user"
+key_path = "/path/to/your/private_key.pem"
+
+# List of commands to run for backup
+commands = [
+    "sudo mount -o remount,exec /tmp/",
+    "sudo mkdir -p /tmp/instance_backup/",
+    "sudo chmod -R 777 /tmp/instance_backup/",
+    # ... (rest of the commands you want to run)
+    "aws s3 cp /tmp/instance_backup-backup.tar.gz s3://your-s3-bucket-name/b2c/"
+]
+
+ssh_to_instance(host_ip, username, key_path, commands)
