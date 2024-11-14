@@ -23,3 +23,17 @@ resource "aws_volume_attachment" "attach_replicated_volumes" {
   force_detach      = false  # Set to true if you want to force detach
 }
 
+The vulnerability reported is a **heap-based buffer overflow** in 7-Zip, specifically affecting versions prior to 24.01. This issue arises from a bug in the 7-Zip software that can allow attackers to exploit the application, potentially leading to unauthorized code execution on your server. 
+
+### Why this issue occurs:
+A heap-based buffer overflow happens when a program writes more data to a block of memory, or heap, than was originally allocated. In the case of 7-Zip, an attacker could exploit this overflow to execute arbitrary code, potentially compromising the affected system. This is a serious vulnerability due to the high potential impact of remote code execution.
+
+### Remediation Steps:
+1. **Update 7-Zip**: The most effective way to remediate this vulnerability is to upgrade 7-Zip to the latest version (at least version 24.01 or higher), which has addressed this buffer overflow issue.
+   - You can download the latest version from the official 7-Zip website and install it on your server.
+   
+2. **Remove Older Version**: If the update is not feasible, consider removing the 7-Zip application from the affected server to mitigate the risk.
+
+3. **Monitor for Exploits**: Ensure that your server has a robust security monitoring system to detect any unusual activity, as vulnerabilities like this can sometimes be targeted quickly after discovery.
+
+After updating or removing the affected software, rerun the vulnerability scan on Qualys to confirm that the issue is resolved.
