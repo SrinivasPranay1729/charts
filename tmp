@@ -1,0 +1,15 @@
+# Resource to create EBS volumes in Account B
+resource "aws_ebs_volume" "replicated_volumes" {
+  provider    = aws.account_b
+  for_each    = { for idx, vol in local.ebs_volumes : idx => vol }
+  
+  availability_zone = "us-east-1a"  # Replace with your desired AZ in Account B
+  size              = each.value.volume_size
+  type              = each.value.volume_type
+
+  tags = {
+    SourceInstance = data.aws_instance.target_instance.id
+    DeviceName     = each.value.device_name
+    ReplicatedBy   = "Terraform Automation"
+  }
+}
