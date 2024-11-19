@@ -37,3 +37,23 @@ base:
   enableIstioConfigCRDs: true
 
 defaultRevision: "default"
+
+
+from airflow import DAG
+from airflow.models import Variable
+from airflow.operators.dummy_operator import DummyOperator
+from airflow.utils.dates import days_ago
+
+default_args = {
+    'owner': 'b2b_viewer',
+}
+
+with DAG(
+    dag_id='b2b_dag1',
+    default_args=default_args,
+    schedule_interval='@daily',
+    start_date=days_ago(1),
+    tags=['b2b'],
+) as dag:
+    start = DummyOperator(task_id='start')
+    start
