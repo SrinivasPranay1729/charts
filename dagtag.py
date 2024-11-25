@@ -1,19 +1,19 @@
-from airflow.www.fab_security.manager import FABAirflowSecurityManager
+from flask_appbuilder.security.manager import BaseSecurityManager
 from airflow.models.serialized_dag import SerializedDagModel
 from flask import request
 import json
 
 
-class CustomRBACSecurityManager(FABAirflowSecurityManager):
+class CustomRBACSecurityManager(BaseSecurityManager):
     """
-    Custom Security Manager to enforce RBAC with tag-based DAG filtering.
+    Custom Security Manager for Airflow to enforce RBAC-based DAG filtering.
     """
 
     # Role-to-tag mapping
     ROLE_TAG_MAP = {
         "b2b_viewer": ["b2b"],
         "b2c_viewer": ["b2c"],
-        "admin": [],  # Admin has access to all DAGs
+        "admin": [],  # Admin can see all DAGs
     }
 
     def get_user_permissions(self, user):
