@@ -1,11 +1,10 @@
-from airflow.www.security_manager import AirflowAppBuilderSecurityManager
+from airflow.www.fab_security.manager import FABAirflowSecurityManager
 from airflow.models.serialized_dag import SerializedDagModel
-from airflow.security import permissions
 from flask import request
 import json
 
 
-class CustomSecurityManager(AirflowAppBuilderSecurityManager):
+class CustomRBACSecurityManager(FABAirflowSecurityManager):
     """
     Custom Security Manager to enforce RBAC with tag-based DAG filtering.
     """
@@ -42,7 +41,7 @@ class CustomSecurityManager(AirflowAppBuilderSecurityManager):
 
     def has_access(self, permission_name, view_name, user):
         """
-        Override access checks to enforce tag-based RBAC for DAGs.
+        Override access checks for filtering DAGs dynamically.
         """
         # Ensure it's a DAG-related view
         if not view_name.startswith("dag"):
@@ -54,13 +53,12 @@ class CustomSecurityManager(AirflowAppBuilderSecurityManager):
 
         # Check permissions for the DAG
         if dag_id in user_permissions:
-            if permission_name == permissions.ACTION_CAN_READ and user_permissions[dag_id]["can_read"]:
+            if permission_name == "can_read" and user_permissions[dag_id]["can_read"]:
                 return True
-            if permission_name == permissions.ACTION_CAN_EDIT and user_permissions[dag_id]["can_edit"]:
+            if permission_name == "can_edit" and user_permissions[dag_id]["can_edit"]:
                 return True
 
         return False  # Default: Deny access
-
 
 
 
