@@ -36,3 +36,69 @@ if __name__ == "__main__":
     instance_ip = "Your Instance IP"  # Replace with the actual IP dynamically
     status = check_agent_status()
     send_status_to_rds(instance_ip, status)
+
+
+import subprocess
+import psycopg2
+from datetime import datetime
+
+# Configuration for different agents and their status-checking commands
+AGENT_CONFIG = {
+    "sentinelagent": {
+        "type": "systemctl",
+        "command": ["systemctl", "is-active", "--quiet", "sentinelagent"],
+    },
+    "customagent": {
+        "type": "command",
+        "command": ["custom-agent-status-checker", "--check"],
+        "validation": lambda output: "running" in output.lower(),
+    },
+    "processagent": {
+        "type": "process",
+        "command": ["pgrep", "-f", "processagent"],
+    },
+}
+
+def check_status(agent_name, config):
+    """Check the status of an agent based on its configuration."""
+    command = config["command"]
+    try:
+        if config["type"] == "systemctl":
+            subprocess.run(command, check=True)
+            return "running"
+        elif config["type"] == "command":
+            output = subprocess.check_output(command, text=True).strip()
+            if config.get("validation") and config["validation"](output):
+                return "running"
+            else:
+                return "not running"
+        elif config["type"] == "process":
+            subprocess.run(command, check=True)
+            return "running"
+    except subprocess.CalledProcessError:
+        return "not running"
+
+def send_status_to_rds(instance_ip, agent_name, status):
+    """Send the agent status and timestamp to the RDS database."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    conn = psycopg2.connect(
+        dbname='your_db_name',
+        user='your_user',
+        password='your_password',
+        host='your_rds_endpoint'
+    )
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO agent_status (instance_ip, agent_name, status, timestamp) VALUES (%s, %s, %s, %s)",
+        (instance_ip, agent_name, status, timestamp)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+if __name__ == "__main__":
+    instance_ip = "Your Instance IP"  # Replace dynamically
+    
+    for agent_name, config in AGENT_CONFIG.items():
+        status = check_status(agent_name, config)
+        send_status_to_rds(instance_ip, agent_name, status)
