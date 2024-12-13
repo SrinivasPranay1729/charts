@@ -1,0 +1,38 @@
+import subprocess
+import psycopg2
+from datetime import datetime
+
+def check_agent_status():
+    try:
+        # Check if the agent is active
+        subprocess.run(["systemctl", "is-active", "--quiet", "sentinelagent"], check=True)
+        return "running"
+    except subprocess.CalledProcessError:
+        return "not running"
+
+def send_status_to_rds(instance_ip, status):
+    # Get the current timestamp
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Connect to the RDS database
+    conn = psycopg2.connect(
+        dbname='your_db_name',
+        user='your_user',
+        password='your_password',
+        host='your_rds_endpoint'
+    )
+    cursor = conn.cursor()
+    
+    # Insert the status along with the timestamp into the database
+    cursor.execute(
+        "INSERT INTO agent_status (instance_ip, status, timestamp) VALUES (%s, %s, %s)",
+        (instance_ip, status, timestamp)
+    )
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+if __name__ == "__main__":
+    instance_ip = "Your Instance IP"  # Replace with the actual IP dynamically
+    status = check_agent_status()
+    send_status_to_rds(instance_ip, status)
