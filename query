@@ -1,0 +1,47 @@
+import pymysql
+
+# Connect to the database
+db = pymysql.connect(
+    host="statuschecker.cluster-cldmtbvej6.us-east-1.rds.amazonaws.com",
+    port=3306,
+    user="admin",
+    password="devops123",
+    db="statuschecker"
+)
+
+try:
+    cursor = db.cursor()
+
+    # Hostname and statuses
+    hostname = hostname.strip()
+    statuses = (
+        hostname, str(tanium_status), str(sshd), str(treepe_status),
+        str(cwagent), str(ud_agent_status).strip(), str(ir_agent),
+        str(ssm), str(dp), str(qualys).strip(), str(sentinelone_version).strip(),
+        str(timestamp), str(accv_version)
+    )
+
+    # DELETE query for cleanup
+    delete_query = "DELETE FROM statuschecker.security_agent_status WHERE HOSTNAME = %s"
+    cursor.execute(delete_query, (hostname,))
+
+    # REPLACE INTO query
+    replace_query = """
+        REPLACE INTO statuschecker.security_agent_status 
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    cursor.execute(replace_query, statuses)
+
+    # Commit the transaction
+    db.commit()
+
+    print("Database updated successfully.")
+
+except Exception as e:
+    print("Error:", e)
+    db.rollback()
+
+finally:
+    # Close the connection
+    cursor.close()
+    db.close()
