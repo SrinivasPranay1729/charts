@@ -1,0 +1,31 @@
+import boto3
+
+# Example region—replace as needed
+region = "us-east-1"
+
+def get_all_instances():
+    client = boto3.client("ec2", region_name=region)
+    # Optionally filter just for 'running' state:
+    response = client.describe_instances(
+        Filters=[{"Name": "instance-state-name", "Values": ["running"]}]
+    )
+    
+    # If you truly want *all* instances, remove the Filters parameter:
+    # response = client.describe_instances()
+
+    # Open the inventory file in append mode
+    with open("inventory/ec2_inventory", "a") as f:
+        for reservation in response["Reservations"]:
+            for instance in reservation["Instances"]:
+                # Write the Private IP to the file
+                if "PrivateIpAddress" in instance:
+                    f.write(instance["PrivateIpAddress"] + "\n")
+                
+                # Print or process as needed
+                print("InstanceId:", instance["InstanceId"])
+                for tag in instance.get("Tags", []):
+                    if tag["Key"] == "Name":
+                        print("Name:", tag["Value"])
+
+# Call the function (no filters) to retrieve & store *all* instances
+get_all_instances()
