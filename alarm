@@ -1,0 +1,32 @@
+provider "aws" {
+  region = "us-east-1" # Replace with your desired AWS region
+}
+
+# Reference the existing SNS Topic
+data "aws_sns_topic" "existing_alert_topic" {
+  name = "your-existing-sns-topic-name" # Replace with your existing SNS topic name
+}
+
+# Define CloudWatch Alarm
+resource "aws_cloudwatch_metric_alarm" "server_down_alarm" {
+  alarm_name          = "server-01-down-alarm"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization" # Replace with your desired metric
+  namespace           = "AWS/EC2"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 10 # Threshold to trigger the alarm (example: 10% CPU)
+  alarm_description   = "BAP_ID: BAP193830 - Server 01 CPU Utilization below threshold" # Include BAP ID in the description
+  actions_enabled     = true
+  alarm_actions       = [data.aws_sns_topic.existing_alert_topic.arn]
+  ok_actions          = [data.aws_sns_topic.existing_alert_topic.arn]
+
+  dimensions = {
+    InstanceId = "i-xxxxxxxxxxxxxxx" # Replace with your instance ID
+  }
+}
+
+output "sns_topic_arn" {
+  value = data.aws_sns_topic.existing_alert_topic.arn
+}
