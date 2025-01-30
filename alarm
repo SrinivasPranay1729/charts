@@ -1,32 +1,134 @@
-provider "aws" {
-  region = "us-east-1" # Replace with your desired AWS region
+resource "aws_iam_policy" "efs_csi_policy" {
+  name        = "AmazonEKS_EFS_CSI_Driver_Policy"
+  description = "Policy for Amazon EKS EFS CSI driver"
+  policy      = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticfilesystem:DescribeAccessPoints",
+          "elasticfilesystem:DescribeFileSystems",
+          "elasticfilesystem:DescribeMountTargets",
+          "elasticfilesystem:CreateAccessPoint",
+          "elasticfilesystem:DeleteAccessPoint"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeAvailabilityZones"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
-# Reference the existing SNS Topic
-data "aws_sns_topic" "existing_alert_topic" {
-  name = "your-existing-sns-topic-name" # Replace with your existing SNS topic name
+
+
+resource "aws_iam_role_policy_attachment" "eks_worker_role_policy_attachment" {
+  policy_arn = aws_iam_policy.efs_csi_policy.arn
+  role       = "<EKS_NODE_ROLE_NAME>"  # Replace with your EKS worker node IAM role name
 }
 
-# Define CloudWatch Alarm
-resource "aws_cloudwatch_metric_alarm" "server_down_alarm" {
-  alarm_name          = "server-01-down-alarm"
-  comparison_operator = "LessThanThreshold"
-  evaluation_periods  = 2
-  metric_name         = "CPUUtilization" # Replace with your desired metric
-  namespace           = "AWS/EC2"
-  period              = 300
-  statistic           = "Average"
-  threshold           = 10 # Threshold to trigger the alarm (example: 10% CPU)
-  alarm_description   = "BAP_ID: BAP193830 - Server 01 CPU Utilization below threshold" # Include BAP ID in the description
-  actions_enabled     = true
-  alarm_actions       = [data.aws_sns_topic.existing_alert_topic.arn]
-  ok_actions          = [data.aws_sns_topic.existing_alert_topic.arn]
 
-  dimensions = {
-    InstanceId = "i-xxxxxxxxxxxxxxx" # Replace with your instance ID
+
+resource "helm_release" "efs_csi_driver" {
+  name       = "aws-efs-csi-driver"
+  repository = "https://kubernetes-sigs.github.io/aws-efs-csi-driver/"
+  chart      = "aws-efs-csi-driver"
+  namespace  = "kube-system"
+
+  set {
+    name  = "controller.serviceAccount.create"
+    value = "true"
+  }
+
+  set {
+    name  = "controller.serviceAccount.name"
+    value = "efs-csi-controller-sa"
   }
 }
 
-output "sns_topic_arn" {
-  value = data.aws_sns_topic.existing_alert_topic.arn
+
+
+
+resource "kubernetes_storage_class" "efs_sc" {
+  metadata {
+    name = "efs-sc"
+  }
+  storage_provisioner = "efs.csi.aws.com"
 }
+
+resource "kubernetes_persistent_volume" "efs_pv" {
+  metadata {
+    name = "efs-pv"
+  }
+  spec {
+    capacity {
+      storage = "5Gi"
+    }
+    volume_mode = "Filesystem"
+    access_modes = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name = kubernetes_storage_class.efs_sc.metadata[0].name
+    csi {
+      driver        = "efs.csi.aws.com"
+      volume_handle = aws_efs_file_system.efs.id
+    }
+  }
+}
+
+resource "kubernetes_persistent_volume_claim" "efs_pvc" {
+  metadata {
+    name = "efs-pvc"
+  }
+  spec {
+    access_modes = ["ReadWriteMany"]
+    resources {
+      requests = {
+        storage = "5Gi"
+      }
+    }
+    storage_class_name = kubernetes_storage_class.efs_sc.metadata[0].name
+  }
+}
+
+
+
+
+
+resource "kubernetes_pod" "efs_test_pod" {
+  metadata {
+    name = "efs-test-pod"
+  }
+  spec {
+    container {
+      name  = "app"
+      image = "busybox"
+      command = ["sleep", "3600"]
+      volume_mount {
+        mount_path = "/data"
+        name       = "efs-volume"
+      }
+    }
+    volume {
+      name = "efs-volume"
+      persistent_volume_claim {
+        claim_name = kubernetes_persistent_volume_claim.efs_pvc.metadata[0].name
+      }
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
