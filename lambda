@@ -60,3 +60,45 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps('Message sent to SNS successfully!')
     }
+
+
+
+import json
+import boto3
+import os
+
+sns_client = boto3.client("sns")
+cloudwatch_client = boto3.client("cloudwatch")
+
+SNS_TOPIC_ARN = os.getenv("SNS_TOPIC_ARN")  # Set this in Lambda environment variables
+ALARM_DESCRIPTION = "AVERS1234565"  # Hardcoded for BigPanda filtering
+
+def lambda_handler(event, context):
+    try:
+        # Clone the original event without modification
+        enriched_event = event.copy()
+        
+        # Inject the AlarmDescription field
+        if "detail" in enriched_event:
+            enriched_event["detail"]["alarmDescription"] = ALARM_DESCRIPTION
+
+        # Publish the enriched message to SNS
+        response = sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps(enriched_event),
+            Subject="CloudWatch Alarm Notification"
+        )
+
+        print("SNS Notification Sent:", response)
+        
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"message": "AlarmDescription Injected and SNS Notification Sent"})
+        }
+    
+    except Exception as e:
+        print("Error:", str(e))
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
