@@ -1,0 +1,62 @@
+import json
+import os
+import boto3
+
+# Create the SNS client outside the handler for connection reuse.
+sns_client = boto3.client('sns')
+
+# Retrieve configuration from environment variables.
+SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')  # Your SNS Topic ARN.
+BUSINESS_ID = os.environ.get('BUSINESS_ID')        # Your Business ID.
+
+def lambda_handler(event, context):
+    """
+    AWS Lambda function that processes an EventBridge event,
+    enriches the payload with a business ID, and publishes a message
+    to SNS with a subject line based on the server's state.
+    """
+    # Log the received event for debugging.
+    print("Received event:", json.dumps(event, indent=2))
+    
+    # Copy the event to modify it.
+    formatted_message = event.copy()
+    
+    # Enrich the message with the business id.
+    formatted_message['business_id'] = BUSINESS_ID
+    
+    # Extract instance id and state from event details, if available.
+    # It's assumed that the EventBridge event includes a 'detail' key.
+    detail = event.get("detail", {})
+    instance_id = detail.get("instance-id", "unknown-instance")
+    state = detail.get("state", "").lower()  # e.g., "stopping", "stopped", or "down"
+    
+    # Determine the message subject based on the state.
+    if state in ["stopping", "stopped"]:
+        # For 'stopping' or 'stopped', set the subject accordingly.
+        subject = f"Server {state}"
+    elif state == "down":
+        # For 'down', include the EC2 instance id in the subject.
+        subject = f"Server down - {instance_id}"
+    else:
+        # Default subject if state is not recognized.
+        subject = f"Server notification - {instance_id}"
+    
+    # Convert the enriched message to a JSON string.
+    message_str = json.dumps(formatted_message)
+    
+    try:
+        # Publish the message to the SNS topic.
+        response = sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=message_str,
+            Subject=subject
+        )
+        print("SNS Publish Response:", json.dumps(response, indent=2))
+    except Exception as e:
+        print("Error publishing to SNS:", str(e))
+        raise e
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Message sent to SNS successfully!')
+    }
