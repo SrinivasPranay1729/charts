@@ -102,3 +102,63 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
+
+
+
+
+
+
+import json
+import os
+import boto3
+
+sns_client = boto3.client('sns')
+
+# Get SNS Topic ARN from environment variables
+SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
+
+def lambda_handler(event, context):
+    print("Received event:", json.dumps(event, indent=2))
+
+    # Extract Business ID from AlarmDescription (from EventBridge)
+    business_id = event.get("AlarmDescription", "unknown-business")
+
+    # Extract instance details (from EventBridge "detail" section)
+    detail = event.get("detail", {})
+    instance_id = detail.get("instance-id", "unknown-instance")
+    state = detail.get("state", "").lower()
+
+    # Determine notification subject
+    if state in ["stopping", "stopped"]:
+        subject = f"Server {state}"
+    elif state == "down":
+        subject = f"Server down - {instance_id}"
+    else:
+        subject = f"Server notification - {instance_id}"
+
+    # Format message exactly as BigPanda expects
+    sns_message = {
+        "status": "critical" if state == "down" else "warning",
+        "incident_identifier": f"server-{state}-{instance_id}",
+        "message": subject,
+        "host": instance_id,  # Required field for BigPanda
+        "service": "AWS EC2",
+        "application": "AWS Monitoring",
+        "device": business_id
+    }
+
+    # Publish to SNS (which will forward it to BigPanda)
+    try:
+        sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps(sns_message),  # Send the formatted JSON
+            Subject=subject
+        )
+    except Exception as e:
+        print("Error publishing to SNS:", str(e))
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Notification sent successfully!')
+    }
