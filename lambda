@@ -162,3 +162,78 @@ def lambda_handler(event, context):
         'statusCode': 200,
         'body': json.dumps('Notification sent successfully!')
     }
+
+
+
+
+
+
+
+import json
+import os
+import boto3
+
+sns_client = boto3.client('sns')
+
+# Get SNS Topic ARN & Business ID from environment variables
+SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
+BUSINESS_ID = os.environ.get('BUSINESS_ID', 'default-business-id')  # Default if env variable is missing
+
+def lambda_handler(event, context):
+    print("Received event:", json.dumps(event, indent=2))
+
+    # Clone the original event so we don't modify the reference
+    enriched_event = event.copy()
+
+    # Inject BUSINESS_ID into the `detail` section as `alarmDescription`
+    if "detail" in enriched_event:
+        enriched_event["detail"]["alarmDescription"] = BUSINESS_ID  # Inject Business ID
+
+    # Extract instance details from the event
+    detail = enriched_event.get("detail", {})
+    instance_id = detail.get("instance-id", "unknown-instance")
+    state = detail.get("state", "").lower()
+    region = event.get("region", "unknown-region")
+    account = event.get("account", "unknown-account")
+
+    # Determine notification subject
+    if state in ["stopping", "stopped"]:
+        subject = f"Server {state}"
+    elif state == "down":
+        subject = f"Server down - {instance_id}"
+    else:
+        subject = f"Server notification - {instance_id}"
+
+    # **Format the message as JSON for SNS & BigPanda**
+    sns_message = {
+        "status": "critical" if state == "down" else "warning",
+        "incident_identifier": f"server-{state}-{instance_id}",
+        "message": subject,
+        "host": instance_id,  # Required by BigPanda
+        "service": "AWS EC2",
+        "application": "AWS Monitoring",
+        "device": BUSINESS_ID,  # Injected Business ID from environment variable
+        "region": region,
+        "account": account
+    }
+
+    # Publish to SNS (which will forward it to BigPanda)
+    try:
+        response = sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps(sns_message),  # Sends JSON-formatted message
+            Subject=subject
+        )
+        print("SNS Notification Sent:", response)
+    except Exception as e:
+        print("Error publishing to SNS:", str(e))
+        return {
+            'statusCode': 500,
+            'body': json.dumps({"error": str(e)})
+        }
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps({"message": "Business ID injected and SNS Notification Sent"})
+    }
+
