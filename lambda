@@ -237,3 +237,58 @@ def lambda_handler(event, context):
         'body': json.dumps({"message": "Business ID injected and SNS Notification Sent"})
     }
 
+
+
+
+
+
+
+
+import json
+import boto3
+import os
+
+sns_client = boto3.client('sns')
+
+SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
+ALARM_DESCRIPTION = os.environ.get('ALARM_DESCRIPTION')
+
+def lambda_handler(event, context):
+    try:
+        enriched_event = event.copy()
+
+        # Inject the AlarmDescription field
+        if "detail" in enriched_event:
+            enriched_event["detail"]["alarmDescription"] = ALARM_DESCRIPTION
+
+            # Ensure at least one primary property exists
+            if "host" not in enriched_event["detail"] and \
+               "service" not in enriched_event["detail"] and \
+               "application" not in enriched_event["detail"] and \
+               "device" not in enriched_event["detail"]:
+                enriched_event["detail"]["service"] = "default-service"
+
+        instance_id = enriched_event.get("detail", {}).get("instance-id", "unknown-instance")
+        enriched_event["detail"]["host"] = instance_id  # Assign instance_id as host if missing
+
+        # Publish the enriched message to SNS
+        response = sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps(enriched_event),
+            Subject="EventBridge Alarm Notification"
+        )
+
+        print("SNS Notification Sent:", response)
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"message": "AlarmDescription Injected and SNS Notification Sent"})
+        }
+
+    except Exception as e:
+        print("Error:", str(e))
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
+
