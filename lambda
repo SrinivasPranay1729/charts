@@ -1,4 +1,4 @@
-import json
+mi import json
 import os
 import boto3
 
@@ -291,4 +291,63 @@ def lambda_handler(event, context):
             "statusCode": 500,
             "body": json.dumps({"error": str(e)})
         }
+
+
+
+
+
+import json
+import boto3
+import os
+
+sns_client = boto3.client('sns')
+
+SNS_TOPIC_ARN = os.environ.get('SNS_TOPIC_ARN')
+ALARM_DESCRIPTION = os.environ.get('ALARM_DESCRIPTION')
+
+def lambda_handler(event, context):
+    try:
+        enriched_event = event.copy()
+
+        # Inject the AlarmDescription field
+        if "detail" in enriched_event:
+            enriched_event["alarmDescription"] = ALARM_DESCRIPTION
+
+            # Ensure at least one primary property exists at the top level
+            if "host" not in enriched_event and "service" not in enriched_event and \
+               "application" not in enriched_event and "device" not in enriched_event:
+                enriched_event["service"] = "default-service"
+
+            instance_id = enriched_event["detail"].get("instance-id", "unknown-instance")
+            enriched_event["host"] = instance_id  # Move host to the top level
+
+        # Transform event to match BigPanda structure
+        transformed_event = {
+            "alerts": [enriched_event]
+        }
+
+        # Print for debugging
+        print("Final Payload:", json.dumps(transformed_event, indent=2))
+
+        # Publish to SNS
+        response = sns_client.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps(transformed_event),
+            Subject="EventBridge Alarm Notification"
+        )
+
+        print("SNS Notification Sent:", response)
+
+        return {
+            "statusCode": 200,
+            "body": json.dumps({"message": "AlarmDescription Injected and SNS Notification Sent"})
+        }
+
+    except Exception as e:
+        print("Error:", str(e))
+        return {
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)})
+        }
+
 
