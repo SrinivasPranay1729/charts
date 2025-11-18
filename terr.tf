@@ -84,3 +84,45 @@ variable "override_secondary_region" {
   type        = bool
   default     = null
 }
+
+
+
+locals {
+
+  # 1. Default based on environment
+  env_default_secondary_allowed = (
+    local.environment_type == "prod" ? true :
+    local.environment_type == "uat"  ? true :
+    false
+  )
+
+  # 2. Default based on region
+  secondary_other_regions = (
+    local.primary_region_code == "cus" ? true : false
+  )
+
+  # 3. Combined default
+  default_secondary_allowed = (
+    local.env_default_secondary_allowed && local.secondary_other_regions
+  )
+
+  # 4. Override must be applied BEFORE final
+  env_secondary_allowed = (
+    var.override_secondary_region == null ?
+    local.default_secondary_allowed :
+    var.override_secondary_region
+  )
+
+  # 5. Force flags
+  secondary_rg_inputs = (
+    var.create_secondary_vnet ||
+    var.create_secondary_rgs  ||
+    var.create_secondary_kv
+  )
+
+  # 6. FINAL (must come last)
+  secondary_region_enabled = (
+    local.secondary_rg_inputs || local.env_secondary_allowed
+  )
+}
+
