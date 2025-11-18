@@ -126,3 +126,40 @@ locals {
   )
 }
 
+
+
+
+
+locals {
+
+  region_default_secondary_allowed = (
+    lower(local.primary_region_code) == "cus"
+  )
+
+  env_default_secondary_allowed = (
+    local.environment_type == "prod" ||
+    local.environment_type == "uat"
+  )
+
+  default_secondary_allowed = (
+    local.region_default_secondary_allowed &&
+    local.env_default_secondary_allowed
+  )
+
+  # ⭐ INVERTED OVERRIDE (true = disable, false = enable)
+  override_secondary = (
+    var.override_secondary_region == null ?
+    local.default_secondary_allowed :
+    !var.override_secondary_region
+  )
+
+  force_secondary = (
+    local.region_default_secondary_allowed &&
+    (var.create_secondary_vnet || var.create_secondary_rgs || var.create_secondary_kv)
+  )
+
+  secondary_region_enabled = (
+    local.force_secondary || local.override_secondary
+  )
+}
+
