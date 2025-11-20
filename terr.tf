@@ -129,35 +129,46 @@ locals {
 
 
 
-
 locals {
 
-  region_default_secondary_allowed = (
+  # Region logic:
+  # CUS -> region allows secondary by default
+  # Others -> region does not allow secondary
+  region_default_secondary = (
     lower(local.primary_region_code) == "cus"
   )
 
-  env_default_secondary_allowed = (
+  # Environment logic:
+  # prod/uat -> env allows secondary
+  # dev -> env does not allow secondary
+  env_default_secondary = (
     local.environment_type == "prod" ||
     local.environment_type == "uat"
   )
 
+  # Default logic combines BOTH region and environment
   default_secondary_allowed = (
-    local.region_default_secondary_allowed &&
-    local.env_default_secondary_allowed
+    local.region_default_secondary &&
+    local.env_default_secondary
   )
 
-  # ⭐ INVERTED OVERRIDE (true = disable, false = enable)
+  # Override logic (flipped):
+  # null  -> use default logic
+  # true  -> disable secondary
+  # false -> enable secondary
   override_secondary = (
     var.override_secondary_region == null ?
     local.default_secondary_allowed :
     !var.override_secondary_region
   )
 
+  # Force secondary, but only when region=CUS
   force_secondary = (
-    local.region_default_secondary_allowed &&
+    local.region_default_secondary &&
     (var.create_secondary_vnet || var.create_secondary_rgs || var.create_secondary_kv)
   )
 
+  # Final flag
   secondary_region_enabled = (
     local.force_secondary || local.override_secondary
   )
