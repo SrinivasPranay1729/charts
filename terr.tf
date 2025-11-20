@@ -174,3 +174,21 @@ locals {
   )
 }
 
+
+output "debug_secondary_flags" {
+  value = {
+    primary_region_code          = local.primary_region_code
+    environment_type             = local.environment_type
+    override_secondary_region    = var.override_secondary_region
+    region_default_secondary     = local.region_default_secondary
+    env_default_secondary        = local.env_default_secondary
+    default_secondary_allowed    = local.default_secondary_allowed
+    override_secondary           = local.override_secondary
+    create_secondary_vnet        = var.create_secondary_vnet
+    create_secondary_rgs         = var.create_secondary_rgs
+    create_secondary_kv          = var.create_secondary_kv
+    force_secondary              = local.force_secondary
+    secondary_region_enabled     = local.secondary_region_enabled
+  }
+}
+
